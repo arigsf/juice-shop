@@ -1,0 +1,45 @@
+name: Coverity
+
+on:
+  workflow_dispatch:
+
+jobs:
+  coverity-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v3
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Instalar dependências do Juice Shop
+        run: npm install
+
+      - name: Rodar Coverity Scan e Enviar
+        env:
+          TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          PROJECT: "arigsf/juice-shop" 
+          EMAIL: "arifilhosilva235@gmail.com"
+        run: |
+          echo "Baixando o Coverity Build Tool..."
+          wget -q https://scan.coverity.com/download/linux64 --post-data "token=$TOKEN&project=$PROJECT" -O coverity_tool.tgz
+          mkdir coverity_tool
+          tar -xf coverity_tool.tgz -C coverity_tool --strip-components=1
+          export PATH=$PWD/coverity_tool/bin:$PATH
+          
+          echo "Capturando o código JavaScript/Node..."
+          cov-build --dir cov-int --fs-capture-search . --no-command
+          
+          echo "Compactando os resultados..."
+          tar czvf coverity_results.tgz cov-int
+          
+          echo "Enviando para os servidores do Coverity Scan..."
+          curl --form token=$TOKEN \
+               --form email=$EMAIL \
+               --form file=@coverity_results.tgz \
+               --form version="1.0" \
+               --form description="Scan automático via GitHub Actions" \
+               "https://scan.coverity.com/builds?project=$PROJECT"
